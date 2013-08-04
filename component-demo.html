@@ -1,0 +1,71 @@
+<style>
+.anim {
+  width: 100px;
+  height: 100px;
+  background-color: red;
+  position: absolute;
+  top: 300px;
+  left: 100px;
+}
+</style>
+<textarea name='input' rows='10' cols='20'>
+scale: '2, 2'
+transform: 'rotate(40deg)'
+</textarea>
+<div class='anim'></div>
+<script src='web-animations.js'></script>
+<script>
+
+function compositeRotation(property, underlyingValue, value) {
+  return underlyingValue + Number(value);
+}
+
+var anim = document.querySelector('.anim')
+
+function createCustomChannel(matchesType, defaultBase) {
+  return {
+    setValue: function(target, property, value) {
+      target.setAttribute(property, value);
+    },
+    getValue: function(target, property) {
+      var v = target.getAttribute(property);
+      if (v) {
+        return v;
+      }
+      return defaultBase;
+    },
+    clearValue: function(target, property) {
+      target.removeAttribute(property);
+    },
+    matchesType: matchesType
+  }
+}
+
+registerCustomType('numberPair', {
+  add: function(base, delta) { return [base[0] + delta[0], base[1] + delta[1]]; },
+  interpolate: function(from, to, f) { return [from[0] * (1 - f) + to[0] * f, from[1] * (1 - f) + to[1] * f]; },
+  fromCssValue: function(value) { if (value == null) { return [1, 1]; } return value.split(' ').map(Number); },
+  toCssValue: function(value) { return value[0] + ' ' + value[1]; }
+});
+
+registerCustomChannel('rotate', createCustomChannel('opacity', '0'));
+registerCustomChannel('translate', createCustomChannel('positionType', '0px 0px'));
+registerCustomChannel('scale', createCustomChannel('numberPair', '1 1'));
+
+function resolve() {
+  var rotate = fromCssValue('rotate', anim.getAttribute('rotate'));
+  var translate = fromCssValue('translate', anim.getAttribute('translate'));
+  var scale = fromCssValue('scale', anim.getAttribute('scale'));
+  // TODO: work out why the first frame is incorrect.
+  if (translate) {
+    anim.style.webkitTransform = 'translate(' + translate[0].px + 'px, ' + translate[1].px + 'px) rotate(' + rotate + 'deg) scale(' + scale[0] + ', ' + scale[1] + ')';
+  }
+  
+}
+
+postComposite(resolve);
+
+document.timeline.play(new Animation(anim, [{ scale: '2 2' }, { rotate: '45' }, { translate: '100px 100px'} ], 1));
+  
+
+</script>

@@ -1728,6 +1728,9 @@ var normalizeKeyframeDictionary = function(properties) {
     } else if (property === 'composite') {
       if (properties.composite === 'add' || properties.composite === 'replace') {
         result.composite = properties.composite;
+      } else if (properties.composite instanceof Function) {
+	console.warn('custom compositor functions are a non-standard extension to the polyfill.');
+	result.composite = properties.composite;
       }
     } else {
       // TODO: Check whether this is a supported property.
@@ -1857,11 +1860,19 @@ KeyframeAnimationEffect.prototype = createObject(AnimationEffect.prototype, {
 
     var startKeyframeIndex;
     var length = frames.length;
+
+    function newCompositable(value, composite) {
+      if (composite == 'add' || composite == 'replace') {
+	return new AddReplaceCompositableValue(value, composite);
+      }
+      return new CustomCompositableValue(value, composite);
+    }
+
     // We extrapolate differently depending on whether or not there are multiple
     // keyframes at offsets of 0 and 1.
     if (timeFraction < 0.0) {
       if (frames[1].offset === 0.0) {
-        return new AddReplaceCompositableValue(
+        return newCompositable(
             frames[0].rawValueForProperty(property),
             this._compositeForKeyframe(frames[0]));
       } else {
@@ -1869,7 +1880,7 @@ KeyframeAnimationEffect.prototype = createObject(AnimationEffect.prototype, {
       }
     } else if (timeFraction >= 1.0) {
       if (frames[length - 2].offset === 1.0) {
-        return new AddReplaceCompositableValue(
+        return newCompositable(
             frames[length - 1].rawValueForProperty(property),
             this._compositeForKeyframe(frames[length - 1]));
       } else {
@@ -1899,10 +1910,10 @@ KeyframeAnimationEffect.prototype = createObject(AnimationEffect.prototype, {
     var intervalDistance = (timeFraction - startKeyframe.offset) /
         (endKeyframe.offset - startKeyframe.offset);
     return new BlendedCompositableValue(
-        new AddReplaceCompositableValue(
+        newCompositable(
             startKeyframe.rawValueForProperty(property),
             this._compositeForKeyframe(startKeyframe)),
-        new AddReplaceCompositableValue(
+        newCompositable(
             endKeyframe.rawValueForProperty(property),
             this._compositeForKeyframe(endKeyframe)),
         intervalDistance);
@@ -3740,6 +3751,7 @@ var propertyTypes = {
   paddingLeft: lengthType,
   paddingRight: lengthType,
   paddingTop: lengthType,
+  positionType: positionType,
   right: percentLengthAutoType,
   textIndent: typeWithKeywords(['each-line', 'hanging'], percentLengthType),
   textShadow: shadowType,
@@ -3876,6 +3888,9 @@ var add = function(property, base, delta) {
   if (base === 'inherit' || delta === 'inherit') {
     return nonNumericType.add(base, delta);
   }
+  if (customChannels[property]) {
+    return getType(customChannels[property].matchesType).add(base, delta);
+  }
   return getType(property).add(base, delta);
 }
 
@@ -3901,6 +3916,8 @@ var interpolate = function(property, from, to, f) {
   }
   if (f == 1) {
     return to;
+  if (customChannels[property]) {
+    return getType(customChannels[property].matchesType).interpolate(from, to, f);
   }
   return getType(property).interpolate(from, to, f);
 }
@@ -3914,6 +3931,9 @@ var toCssValue = function(property, value, svgMode) {
   if (value === 'inherit') {
     return value;
   }
+  if (customChannels[property]) {
+    return getType(customChannels[property].matchesType).toCssValue(value);
+  }
   return getType(property).toCssValue(value, svgMode);
 }
 
@@ -3923,6 +3943,9 @@ var fromCssValue = function(property, value) {
   }
   if (value === 'inherit') {
     return value;
+  }
+  if (customChannels[property]) {
+    return getType(customChannels[property].matchesType).fromCssValue(value);
   }
   if (property in propertyValueAliases && value in propertyValueAliases[property]) {
     value = propertyValueAliases[property][value];
@@ -3952,6 +3975,20 @@ CompositableValue.prototype = {
   },
 };
 
+var CustomCompositableValue = function(value, impl) {
+  this.value = value;
+  this.impl = impl;
+};
+
+CustomCompositableValue.prototype =
+    createObject(CompositableValue.prototype, {
+  compositeOnto: function(property, underlyingValue) {
+    return this.impl(property, underlyingValue, this.value);
+  },
+  dependsOnUnderlyingValue: function() {
+    return true;
+  }
+});
 
 /** @constructor */
 var AddReplaceCompositableValue = function(value, composite) {
@@ -4121,8 +4158,16 @@ Compositor.prototype = {
       var target = this.targets[i];
       target._anim_properties.applyAnimatedValues();
     }
+    
+    if (this.postComposite) {
+      this.postComposite();
+    }
   }
 };
+
+function postComposite(f) {
+  compositor.postComposite = f;
+}
 
 var initializeIfSVGAndUninitialized = function(property, target) {
   if (propertyIsSVGAttrib(property, target)) {
@@ -4169,7 +4214,23 @@ var initializeIfSVGAndUninitialized = function(property, target) {
   }
 }
 
+var customChannels = {};
+
+function registerCustomChannel(name, channelData) {
+  console.warn('custom channels are a non-standard extension to the polyfill.');
+  customChannels[name] = channelData;
+}
+
+function registerCustomType(name, typeData) {
+  console.warn('custom types are a non-standard extension to the polyfill.');
+  propertyTypes[name] = typeData;
+}
+
 var setValue = function(target, property, value) {
+  if (customChannels[property]) {
+    customChannels[property].setValue(target, property, value);
+    return;
+  }
   initializeIfSVGAndUninitialized(property, target);
   if (property === "transform") {
     property = features.transformProperty;
@@ -4182,6 +4243,10 @@ var setValue = function(target, property, value) {
 }
 
 var clearValue = function(target, property) {
+  if (customChannels[property]) {
+    customChannels[property].clearValue(target, property);
+    return;
+  }
   initializeIfSVGAndUninitialized(property, target);
   if (property == "transform") {
     property = features.transformProperty;
@@ -4194,6 +4259,9 @@ var clearValue = function(target, property) {
 }
 
 var getValue = function(target, property) {
+  if (customChannels[property]) {
+    return customChannels[property].getValue(target, property);
+  }
   initializeIfSVGAndUninitialized(property, target);
   if (property == "transform") {
     property = features.transformProperty;
@@ -4451,6 +4519,11 @@ window.Timing = Timing;
 window.Timeline = Timeline;
 window.TimingEvent = TimingEvent;
 window.TimingGroup = TimingGroup;
+window.registerCustomChannel = registerCustomChannel;
+window.registerCustomType = registerCustomType;
+window.toCssValue = toCssValue;
+window.fromCssValue = fromCssValue;
+window.postComposite = postComposite;
 
 window._WebAnimationsTestingUtilities = {
   _constructorToken : constructorToken,
