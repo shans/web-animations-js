@@ -195,7 +195,8 @@ Timeline.prototype = {
         this._startTime /= 1000;
       }
     }
-    return relativeTime(cachedClockTime(), this._startTime);
+    var r = relativeTime(cachedClockTime(), this._startTime);
+    return r;
   },
   play: function(source) {
     return new Player(constructorToken, source, this);
@@ -236,6 +237,7 @@ var Player = function(token, source, timeline) {
   this._timeDrift = 0.0;
   this._pauseTime = undefined;
   this._playbackRate = 1.0;
+  console.log(this._startTime, this._currentTime, this.timeline.currentTime);
   this._hasTicked = false;
 
   this.source = source;
@@ -300,6 +302,7 @@ Player.prototype = {
     if (this.timeline.currentTime === null) {
       return null;
     }
+    console.log(this.timeline.currentTime, this.startTime, '<---');
     return isDefined(this._pauseTime) ? this._pauseTime :
         (this.timeline.currentTime - this.startTime) * this.playbackRate -
         this._timeDrift;
@@ -3676,7 +3679,7 @@ var transformType = {
   },
   fromCssValue: function(value) {
     // TODO: fix this :)
-    if (value === undefined) {
+    if (value === undefined || value === null) {
       return undefined;
     }
     var result = []
@@ -4310,6 +4313,7 @@ if (!raf) {
   }
 }
 
+
 var clockMillis = function() {
   return usePerformanceTiming ? performance.now() : Date.now();
 };
@@ -4412,6 +4416,7 @@ var playerSortFunction = function(a, b) {
 
 var lastTickTime;
 var ticker = function(rafTime, isRepeat) {
+  console.log('rafTime', rafTime);
   // Don't tick till the page is loaded....
   if (!isDefined(documentTimeZeroAsRafTime)) {
     raf(ticker);
@@ -4424,6 +4429,7 @@ var ticker = function(rafTime, isRepeat) {
     }
     lastTickTime = rafTime;
     cachedClockTimeMillis = rafTime;
+    lastClockTimeMillis = rafTime;
   }
 
   // Get animations for this sample. We order by Player then by DFS order within
@@ -4477,6 +4483,7 @@ var maybeRestartAnimation = function() {
   if (rafScheduled) {
     return;
   }
+  console.log('scheduling raf');
   raf(ticker);
   rafScheduled = true;
 };

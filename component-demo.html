@@ -8,10 +8,15 @@
   left: 100px;
 }
 </style>
-<textarea name='input' rows='10' cols='20'>
+<textarea name='input' rows='10' cols='40'>
 scale: '2, 2'
 transform: 'rotate(40deg)'
 </textarea>
+<select id='whichFirst' name='whichFirst'>
+  <option value='aggregateFirst' label='aggregate transform first'>Aggregate transform first</option>
+  <option value='componentsFirst' label='transform components first'>Transform components first</option>
+</select>
+<button id='playMe'>Play that funky anim</button>
 <div class='anim'></div>
 <script src='web-animations.js'></script>
 <script>
@@ -21,6 +26,19 @@ function compositeRotation(property, underlyingValue, value) {
 }
 
 var anim = document.querySelector('.anim')
+
+var aggregateFirst = whichFirst.value == 'aggregateFirst';
+whichFirst.onchange = function(e) {
+  aggregateFirst = whichFirst.value == 'aggregateFirst';
+}
+
+var t = true;
+
+playMe.onclick = function(e) {
+  document.timeline.play(new Animation(anim, [{ scale: 'scale(2, 2)' }, { rotate: 'rotate(45deg)' }, 
+        { transform: 'translate(20px) rotate(45deg)', translate: 'translate(100px, 100px)'} ], 0.1));
+}
+  
 
 function createCustomChannel(matchesType, defaultBase) {
   return {
@@ -41,31 +59,27 @@ function createCustomChannel(matchesType, defaultBase) {
   }
 }
 
-registerCustomType('numberPair', {
-  add: function(base, delta) { return [base[0] + delta[0], base[1] + delta[1]]; },
-  interpolate: function(from, to, f) { return [from[0] * (1 - f) + to[0] * f, from[1] * (1 - f) + to[1] * f]; },
-  fromCssValue: function(value) { if (value == null) { return [1, 1]; } return value.split(' ').map(Number); },
-  toCssValue: function(value) { return value[0] + ' ' + value[1]; }
-});
-
-registerCustomChannel('rotate', createCustomChannel('opacity', '0'));
-registerCustomChannel('translate', createCustomChannel('positionType', '0px 0px'));
-registerCustomChannel('scale', createCustomChannel('numberPair', '1 1'));
+registerCustomChannel('rotate', createCustomChannel('transform', 'rotate(0deg)'));
+registerCustomChannel('translate', createCustomChannel('transform', 'translate(0px, 0px)'));
+registerCustomChannel('scale', createCustomChannel('transform', 'scale(1, 1)'));
+registerCustomChannel('transform', createCustomChannel('transform', ''));
 
 function resolve() {
-  var rotate = fromCssValue('rotate', anim.getAttribute('rotate'));
-  var translate = fromCssValue('translate', anim.getAttribute('translate'));
-  var scale = fromCssValue('scale', anim.getAttribute('scale'));
+  var rotate = anim.getAttribute('rotate');
+  var translate = anim.getAttribute('translate');
+  var scale = anim.getAttribute('scale');
+  var transform = anim.getAttribute('transform');
   // TODO: work out why the first frame is incorrect.
   if (translate) {
-    anim.style.webkitTransform = 'translate(' + translate[0].px + 'px, ' + translate[1].px + 'px) rotate(' + rotate + 'deg) scale(' + scale[0] + ', ' + scale[1] + ')';
+    anim.style.webkitTransform = (aggregateFirst ? transform + ' ' : '' ) 
+      + translate + ' ' + rotate + ' ' + scale 
+      + (aggregateFirst ? '' : ' ' + transform);
   }
   
 }
 
 postComposite(resolve);
 
-document.timeline.play(new Animation(anim, [{ scale: '2 2' }, { rotate: '45' }, { translate: '100px 100px'} ], 1));
   
 
 </script>
