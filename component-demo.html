@@ -35,8 +35,12 @@ whichFirst.onchange = function(e) {
 var t = true;
 
 playMe.onclick = function(e) {
+  anim.removeAttribute('transform');
+  anim.removeAttribute('rotate');
+  anim.removeAttribute('translate');
+  anim.removeAttribute('scale');
   document.timeline.play(new Animation(anim, [{ scale: 'scale(2, 2)' }, { rotate: 'rotate(45deg)' }, 
-        { transform: 'translate(20px) rotate(45deg)', translate: 'translate(100px, 100px)'} ], 0.1));
+        { transform: 'translate(20px) rotate(45deg)', translate: 'translate(100px, 100px)'} ], 1));
 }
   
 
