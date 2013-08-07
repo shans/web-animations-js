@@ -8,82 +8,307 @@
   left: 100px;
 }
 </style>
-<textarea name='input' rows='10' cols='40'>
-scale: '2, 2'
-transform: 'rotate(40deg)'
+<textarea name='input' rows='10' cols='50' id='input'>
+Animate A blue
+  scale: 1
+  scale: 2
+
+Animate A
+  transform: rotate(45deg)
 </textarea>
+<button id='update'>Update animations</button>
+<br>
 <select id='whichFirst' name='whichFirst'>
   <option value='aggregateFirst' label='aggregate transform first'>Aggregate transform first</option>
   <option value='componentsFirst' label='transform components first'>Transform components first</option>
+  <option value='channelsIntertwingled' label='transform components first'>Channels intertwingled</option>
 </select>
 <button id='playMe'>Play that funky anim</button>
-<div class='anim'></div>
 <script src='web-animations.js'></script>
 <script>
 
-function compositeRotation(property, underlyingValue, value) {
-  return underlyingValue + Number(value);
+var anim = document.querySelector('.anim')
+var animations = [];
+
+var DEBUG = 0;
+
+function debug() {
+  if (DEBUG) {
+    debug.apply(console, arguments);
+  }
 }
 
-var anim = document.querySelector('.anim')
+function parseInput() {
+  var s = input.value;
 
-var aggregateFirst = whichFirst.value == 'aggregateFirst';
+  var elements = {};
+  var animation = undefined;
+  var lines = s.split('\n');
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (line == '') {
+      continue;
+    }
+    if (line.substring(0, 7) == 'Animate') {
+      var components = line.split(' ');
+      var currentName = components[1];
+      if (components.length > 2) {
+        var color = components[2];
+      } else {
+        var color = undefined;
+      }
+      animation = undefined;
+      if (currentName in elements) {
+        continue;
+      }
+      var div = document.createElement('div');
+      if (color) {
+        div.style.backgroundColor = color;
+      }
+      div.classList.add('anim');
+      document.documentElement.appendChild(div);
+      elements[currentName] = div;
+    } else {
+      if (!animation) {
+        animation = {};
+        animation.keyframes = [];
+        animation.target = div;
+        animations.push(animation);
+      }
+      var components = line.split(',');
+      keyframe = {};
+      animation.keyframes.push(keyframe);
+      for (var j = 0; j < components.length; j++) {
+        var data = components[j].split(':');
+        var property = data[0].trim();
+        var value = data[1].trim();
+        switch (property) {
+          case 'scale':
+          case 'translate':
+          case 'rotate':
+            keyframe[property] = property + '(' + value + ')';
+            break;
+          default:
+            keyframe[property] = value;
+        }
+      }
+    }   
+  }
+}
+
+function clearInput() {
+  var anims = document.querySelectorAll('.anim');
+  for (var i = 0; i < anims.length; i++) {
+    anims[i].parentElement.removeChild(anims[i]);
+  }
+}
+
+parseInput();
+debug(animations);
+
+update.onclick = function(e) {
+  clearInput();
+  parseInput();
+}
+
 whichFirst.onchange = function(e) {
-  aggregateFirst = whichFirst.value == 'aggregateFirst';
+  if (whichFirst.value == 'channelsIntertwingled') {
+    setupForMix();
+  } else {
+    setupForChannels();
+    aggregateFirst = whichFirst.value == 'aggregateFirst';
+  }
 }
 
 var t = true;
+var player = undefined;
 
 playMe.onclick = function(e) {
-  anim.removeAttribute('transform');
-  anim.removeAttribute('rotate');
-  anim.removeAttribute('translate');
-  anim.removeAttribute('scale');
-  document.timeline.play(new Animation(anim, [{ scale: 'scale(2, 2)' }, { rotate: 'rotate(45deg)' }, 
-        { transform: 'translate(20px) rotate(45deg)', translate: 'translate(100px, 100px)'} ], 1));
+  var animation = new ParGroup(animations.map(function(animation) {
+    return new Animation(animation.target, animation.keyframes, 1);
+  }));
+
+  if (player) {
+    player.source = animation;
+    player.currentTime = 0;
+  } else {
+    player = document.timeline.play(animation);
+  }
 }
   
 
 function createCustomChannel(matchesType, defaultBase) {
   return {
     setValue: function(target, property, value) {
+      debug('setValue', property, value);
       target.setAttribute(property, value);
     },
     getValue: function(target, property) {
+      debug('getValue', property);
       var v = target.getAttribute(property);
       if (v) {
+        debug('--> found', v);
         return v;
       }
+      debug('--> default', defaultBase);
       return defaultBase;
     },
     clearValue: function(target, property) {
+      debug('clearValue', property);
       target.removeAttribute(property);
     },
     matchesType: matchesType
   }
 }
 
-registerCustomChannel('rotate', createCustomChannel('transform', 'rotate(0deg)'));
-registerCustomChannel('translate', createCustomChannel('transform', 'translate(0px, 0px)'));
-registerCustomChannel('scale', createCustomChannel('transform', 'scale(1, 1)'));
-registerCustomChannel('transform', createCustomChannel('transform', ''));
 
-function resolve() {
+function toTransformValue(dict) {
+  if (dict.transform) {
+    return dict.transform;
+  }
+  var result = dict.translate || [];
+  if (dict.scale) {
+    result = result.concat(dict.scale);
+  }
+  if (dict.rotate) {  
+    result = result.concat(dict.rotate);
+  }
+  return result;
+}
+
+function quatToRot(quat) {
+  rot = Math.acos(quat[3]);
+  if ((Math.asin(quat[2]) > 0) == (rot > 0)) {
+    rot = -rot;
+  }
+  return rot / Math.PI * 360;
+}
+
+function transformToComponents(transform) {
+  var dec = decomposeMatrix(convertToMatrix(transform));
+  result = {};
+  result.translate = [{t: 'translate', d:[{px: dec.translate[0]}, {px: dec.translate[1]}]}];
+  result.scale = [{t: 'scale', d:[dec.scale[0], dec.scale[1]]}];
+  result.rotate = [{t: 'rotate', d:[quatToRot(dec.quaternion)]}];
+  return result;
+}
+
+transphormType = {
+  fromCssValue: function(css, alias) {
+    debug('fromCssValue', css, alias);
+    if (!alias) { 
+      return JSON.parse(css);
+    }
+    var primitive = propertyTypes['transform'].fromCssValue(css);
+    if (alias == 'transform') {
+      var r = {transform: primitive};
+    } else {
+      var r = {};
+      r[alias] = primitive;
+    }
+    debug('-->', JSON.stringify(r));
+    return r;
+  },
+  toCssValue: function(value, alias) {
+    debug('toCssValue', JSON.stringify(value), alias);
+    return JSON.stringify(value);
+  },
+  interpolate: function(a, b, f, alias) {
+    debug('interpolate', JSON.stringify(a), JSON.stringify(b), f, alias);
+    if (alias == 'transform') {
+      var left = toTransformValue(a);
+      var right = toTransformValue(b);
+      var result = {transform: propertyTypes['transform'].interpolate(left, right, f)};
+      debug('-->', JSON.stringify(result));
+      return result;
+    } else if (a && a.transform) {
+      a = transformToComponents(a.transform);
+    }
+    var left = a ? (a[alias] || []) : [];
+    var right = b ? (b[alias] || []) : [];
+    a[alias] = propertyTypes['transform'].interpolate(left, right, f);
+    debug('-->', JSON.stringify(a));
+    return a;
+  },
+  replace: function(u, v, alias) {
+    debug('replace', JSON.stringify(u), JSON.stringify(v), alias);
+    var result;
+    if (alias == 'transform') {
+      result = v;
+    } else if (u && u.transform) {
+      result = transformToComponents(u.transform);
+      result[alias] = v[alias];
+    } else {
+      result = {};
+      for (var type in u) {
+        if (type != 'transform') {
+          result[type] = u[type];
+        }
+      }
+      result[alias] = v[alias];
+    }
+    debug('-->', JSON.stringify(result));
+    return result;
+  }
+};
+
+function resolveMix(anim) {
+  debug(anim.getAttribute('transphorm'));
+  var result = propertyTypes['transform'].toCssValue(toTransformValue(JSON.parse(anim.getAttribute('transphorm'))));
+  debug(result);
+  debug('--------');
+  anim.style.webkitTransform = result;
+}
+
+function resolveChannels(anim) {
   var rotate = anim.getAttribute('rotate');
   var translate = anim.getAttribute('translate');
   var scale = anim.getAttribute('scale');
   var transform = anim.getAttribute('transform');
-  // TODO: work out why the first frame is incorrect.
-  if (translate) {
-    anim.style.webkitTransform = (aggregateFirst ? transform + ' ' : '' ) 
-      + translate + ' ' + rotate + ' ' + scale 
-      + (aggregateFirst ? '' : ' ' + transform);
-  }
-  
+
+  var result = (aggregateFirst && transform != null ? transform + ' ' : '' ) 
+    + (translate == null ? '' : translate + ' ')
+    + (rotate == null ? '' : rotate + ' ')
+    + (scale == null ? '' : scale)
+    + (aggregateFirst || transform == null ? '' : ' ' + transform);
+  anim.style.webkitTransform = result;
 }
 
-postComposite(resolve);
+registerCustomChannel('transphorm', createCustomChannel('transphorm', '{}'));
+registerCustomType('transphorm', transphormType);
 
-  
+function resolver(f) {
+  return function() {
+    [].forEach.call(document.querySelectorAll('.anim'), f);
+  }
+}
+
+function setupForChannels() {
+  deregisterChannelAlias('rotate');
+  deregisterChannelAlias('scale');
+  deregisterChannelAlias('translate');
+  deregisterChannelAlias('transform');
+  registerCustomChannel('rotate', createCustomChannel('transform', 'rotate(0deg)'));
+  registerCustomChannel('translate', createCustomChannel('transform', 'translate(0px, 0px)'));
+  registerCustomChannel('scale', createCustomChannel('transform', 'scale(1, 1)'));
+  registerCustomChannel('transform', createCustomChannel('transform', '{}'));
+  postComposite(resolver(resolveChannels));
+}
+
+function setupForMix() {
+  deregisterCustomChannel('rotate');
+  deregisterCustomChannel('translate');
+  deregisterCustomChannel('scale');
+  deregisterCustomChannel('transform');
+  registerChannelAlias('rotate', 'transphorm');
+  registerChannelAlias('scale', 'transphorm');
+  registerChannelAlias('translate', 'transphorm');
+  registerChannelAlias('transform', 'transphorm');
+  postComposite(resolver(resolveMix));
+}
+
+setupForChannels();
+var aggregateFirst = whichFirst.value == 'aggregateFirst';
+
 
 </script>

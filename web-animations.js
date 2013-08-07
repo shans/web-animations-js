@@ -1729,8 +1729,8 @@ var normalizeKeyframeDictionary = function(properties) {
       if (properties.composite === 'add' || properties.composite === 'replace') {
         result.composite = properties.composite;
       } else if (properties.composite instanceof Function) {
-	console.warn('custom compositor functions are a non-standard extension to the polyfill.');
-	result.composite = properties.composite;
+        console.warn('custom compositor functions are a non-standard extension to the polyfill.');
+        result.composite = properties.composite;
       }
     } else {
       // TODO: Check whether this is a supported property.
@@ -1862,10 +1862,7 @@ KeyframeAnimationEffect.prototype = createObject(AnimationEffect.prototype, {
     var length = frames.length;
 
     function newCompositable(value, composite) {
-      if (composite == 'add' || composite == 'replace') {
-	return new AddReplaceCompositableValue(value, composite);
-      }
-      return new CustomCompositableValue(value, composite);
+      return new AddReplaceCompositableValue(value, composite);
     }
 
     // We extrapolate differently depending on whether or not there are multiple
@@ -1898,24 +1895,20 @@ KeyframeAnimationEffect.prototype = createObject(AnimationEffect.prototype, {
     var startKeyframe = frames[startKeyframeIndex];
     var endKeyframe = frames[startKeyframeIndex + 1];
     if (startKeyframe.offset == timeFraction) {
-      return new AddReplaceCompositableValue(
+      return newCompositable(
           startKeyframe.rawValueForProperty(property),
           this._compositeForKeyframe(startKeyframe));
     }
     if (endKeyframe.offset == timeFraction) {
-      return new AddReplaceCompositableValue(
+      return newCompositable(
           endKeyframe.rawValueForProperty(property),
           this._compositeForKeyframe(endKeyframe));
     }
     var intervalDistance = (timeFraction - startKeyframe.offset) /
         (endKeyframe.offset - startKeyframe.offset);
     return new BlendedCompositableValue(
-        newCompositable(
-            startKeyframe.rawValueForProperty(property),
-            this._compositeForKeyframe(startKeyframe)),
-        newCompositable(
-            endKeyframe.rawValueForProperty(property),
-            this._compositeForKeyframe(endKeyframe)),
+        newCompositable(startKeyframe.rawValueForProperty(property), this._compositeForKeyframe(startKeyframe)),
+        newCompositable(endKeyframe.rawValueForProperty(property), this._compositeForKeyframe(endKeyframe)),
         intervalDistance);
   },
   _propertySpecificKeyframes: function(property) {
@@ -3367,7 +3360,7 @@ var decomposeMatrix = function() {
     var pdum3 = cross(row[1], row[2]);
     if (dot(row[0], pdum3) < 0) {
       for (var i = 0; i < 3; i++) {
-        scale[0] *= -1;
+        scale[i] *= -1;
         row[i][0] *= -1;
         row[i][1] *= -1;
         row[i][2] *= -1;
@@ -3881,7 +3874,7 @@ var getType = function(property) {
   return propertyTypes[property] || nonNumericType;
 }
 
-var add = function(property, base, delta) {
+var add = function(property, base, delta, alias) {
   if (delta === rawNeutralValue) {
     return base;
   }
@@ -3889,9 +3882,9 @@ var add = function(property, base, delta) {
     return nonNumericType.add(base, delta);
   }
   if (customChannels[property]) {
-    return getType(customChannels[property].matchesType).add(base, delta);
+    return getType(customChannels[property].matchesType).add(base, delta, alias);
   }
-  return getType(property).add(base, delta);
+  return getType(property).add(base, delta, alias);
 }
 
 /**
@@ -3905,7 +3898,7 @@ var add = function(property, base, delta) {
  * e.g. interpolate('transform', elem, 'rotate(40deg)', 'rotate(50deg)', 0.3);
  *   will return 'rotate(43deg)'.
  */
-var interpolate = function(property, from, to, f) {
+var interpolate = function(property, from, to, f, alias) {
   ASSERT_ENABLED && console.assert(isDefinedAndNotNull(from) && isDefinedAndNotNull(to),
       'Both to and from values should be specified for interpolation');
   if (from === 'inherit' || to === 'inherit') {
@@ -3918,9 +3911,9 @@ var interpolate = function(property, from, to, f) {
     return to;
   }
   if (customChannels[property]) {
-    return getType(customChannels[property].matchesType).interpolate(from, to, f);
+    return getType(customChannels[property].matchesType).interpolate(from, to, f, alias);
   }
-  return getType(property).interpolate(from, to, f);
+  return getType(property).interpolate(from, to, f, alias);
 }
 
 /**
@@ -3928,30 +3921,36 @@ var interpolate = function(property, from, to, f) {
  * value string. Note that SVG transforms do not require units for translate
  * or rotate values while CSS properties require 'px' or 'deg' units.
  */
-var toCssValue = function(property, value, svgMode) {
+var toCssValue = function(property, value, svgMode, alias) {
   if (value === 'inherit') {
     return value;
   }
-  if (customChannels[property]) {
-    return getType(customChannels[property].matchesType).toCssValue(value);
+  if (channelAliases[property]) {
+    return toCssValue(channelAliases[property], value, false, property);
   }
-  return getType(property).toCssValue(value, svgMode);
+  if (customChannels[property]) {
+    return getType(customChannels[property].matchesType).toCssValue(value, alias);
+  }
+  return getType(property).toCssValue(value, svgMode, alias);
 }
 
-var fromCssValue = function(property, value) {
+var fromCssValue = function(property, value, alias) {
   if (value === cssNeutralValue) {
     return rawNeutralValue;
   }
   if (value === 'inherit') {
     return value;
   }
+  if (channelAliases[property]) {
+    return fromCssValue(channelAliases[property], value, property);
+  }
   if (customChannels[property]) {
-    return getType(customChannels[property].matchesType).fromCssValue(value);
+    return getType(customChannels[property].matchesType).fromCssValue(value, alias);
   }
   if (property in propertyValueAliases && value in propertyValueAliases[property]) {
     value = propertyValueAliases[property][value];
   }
-  var result = getType(property).fromCssValue(value);
+  var result = getType(property).fromCssValue(value, alias);
   // Currently we'll hit this assert if input to the API is bad. To avoid this,
   // we should eliminate invalid values when normalizing the list of keyframes.
   // See the TODO in isSupportedPropertyValue().
@@ -3976,21 +3975,6 @@ CompositableValue.prototype = {
   },
 };
 
-var CustomCompositableValue = function(value, impl) {
-  this.value = value;
-  this.impl = impl;
-};
-
-CustomCompositableValue.prototype =
-    createObject(CompositableValue.prototype, {
-  compositeOnto: function(property, underlyingValue) {
-    return this.impl(property, underlyingValue, this.value);
-  },
-  dependsOnUnderlyingValue: function() {
-    return true;
-  }
-});
-
 /** @constructor */
 var AddReplaceCompositableValue = function(value, composite) {
   this.value = value;
@@ -4005,9 +3989,12 @@ AddReplaceCompositableValue.prototype =
   compositeOnto: function(property, underlyingValue) {
     switch (this.composite) {
       case 'replace':
+        if (propertyTypes[property] && propertyTypes[property].replace) {
+          return propertyTypes[property].replace(underlyingValue, this.value, this.aliasedFrom);
+        }
         return this.value;
       case 'add':
-        return add(property, underlyingValue, this.value);
+        return add(property, underlyingValue, this.value, this.aliasedFrom);
       default:
         ASSERT_ENABLED && console.assert(false, 'Invalid composite operation ' + this.composite);
     }
@@ -4021,7 +4008,9 @@ AddReplaceCompositableValue.prototype =
 /** @constructor */
 var BlendedCompositableValue = function(beforeValue, afterValue, fraction) {
   this.beforeValue = beforeValue;
+  beforeValue.blended = 'before';
   this.afterValue = afterValue;
+  afterValue.blended = 'after';
   this.fraction = fraction;
 };
 
@@ -4031,12 +4020,17 @@ BlendedCompositableValue.prototype =
     return interpolate(property,
         this.beforeValue.compositeOnto(property, underlyingValue),
         this.afterValue.compositeOnto(property, underlyingValue),
-        this.fraction);
+        this.fraction, this._aliasedFrom);
   },
   dependsOnUnderlyingValue: function() {
     return this.beforeValue.dependsOnUnderlyingValue() ||
         this.afterValue.dependsOnUnderlyingValue();
   },
+  set aliasedFrom(value) {
+    this._aliasedFrom = value;
+    this.beforeValue.aliasedFrom = value;
+    this.afterValue.aliasedFrom = value;
+  }
 });
 
 
@@ -4077,6 +4071,10 @@ var CompositedPropertyMap = function(target) {
 
 CompositedPropertyMap.prototype = {
   addValue: function(property, animValue) {
+    if (property in channelAliases) {
+      animValue.aliasedFrom = property;
+      property = channelAliases[property];
+    }
     if (!(property in this.properties)) {
       this.properties[property] = [];
     }
@@ -4216,10 +4214,24 @@ var initializeIfSVGAndUninitialized = function(property, target) {
 }
 
 var customChannels = {};
+var channelAliases = {};
 
 function registerCustomChannel(name, channelData) {
   console.warn('custom channels are a non-standard extension to the polyfill.');
   customChannels[name] = channelData;
+}
+
+function deregisterCustomChannel(name) {
+  delete customChannels[name];
+}
+
+function registerChannelAlias(name, alias) {
+  console.warn('channel aliases are a non-standard extension to the polyfill.');
+  channelAliases[name] = alias;
+}
+
+function deregisterChannelAlias(name) {
+  delete channelAliases[name];
 }
 
 function registerCustomType(name, typeData) {
@@ -4227,7 +4239,15 @@ function registerCustomType(name, typeData) {
   propertyTypes[name] = typeData;
 }
 
+function deregisterCustomType(name) {
+  delete propertyTypes[name];
+}
+
 var setValue = function(target, property, value) {
+  if (channelAliases[property]) {
+    setValue(target, channelAliases[property], value);
+    return;
+  }
   if (customChannels[property]) {
     customChannels[property].setValue(target, property, value);
     return;
@@ -4244,6 +4264,10 @@ var setValue = function(target, property, value) {
 }
 
 var clearValue = function(target, property) {
+  if (channelAliases[property]) {
+    clearValue(target, channelAliases[property]);
+    return;
+  }
   if (customChannels[property]) {
     customChannels[property].clearValue(target, property);
     return;
@@ -4260,6 +4284,9 @@ var clearValue = function(target, property) {
 }
 
 var getValue = function(target, property) {
+  if (channelAliases[property]) {
+    return getValue(target, channelAliases[property]);
+  }
   if (customChannels[property]) {
     return customChannels[property].getValue(target, property);
   }
@@ -4523,10 +4550,19 @@ window.Timeline = Timeline;
 window.TimingEvent = TimingEvent;
 window.TimingGroup = TimingGroup;
 window.registerCustomChannel = registerCustomChannel;
+window.registerChannelAlias = registerChannelAlias;
 window.registerCustomType = registerCustomType;
+window.deregisterCustomChannel = deregisterCustomChannel;
+window.deregisterChannelAlias = deregisterChannelAlias;
+window.deregisterCustomType = deregisterCustomType;
+window.propertyTypes = propertyTypes;
 window.toCssValue = toCssValue;
 window.fromCssValue = fromCssValue;
+window.add = add;
+window.interpolate = interpolate;
 window.postComposite = postComposite;
+window.decomposeMatrix = decomposeMatrix;
+window.convertToMatrix = convertToMatrix;
 
 window._WebAnimationsTestingUtilities = {
   _constructorToken : constructorToken,
