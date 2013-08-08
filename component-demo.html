@@ -65,6 +65,7 @@ function parseInput() {
       if (color) {
         div.style.backgroundColor = color;
       }
+      div.innerHTML = currentName;
       div.classList.add('anim');
       document.documentElement.appendChild(div);
       elements[currentName] = div;
@@ -81,7 +82,7 @@ function parseInput() {
       for (var j = 0; j < components.length; j++) {
         var data = components[j].split(':');
         var property = data[0].trim();
-        var value = data[1].trim();
+        var value = data.slice(1, data.length).map(function(a) { return a.trim(); }).reduce(function(a, b) { return a + ' ' + b});
         switch (property) {
           case 'scale':
           case 'translate':

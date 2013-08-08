@@ -3381,6 +3381,8 @@ var decomposeMatrix = function() {
     if (row[1][0] > row[0][1])
       quaternion[2] = -quaternion[2];
 
+    quaternion[3] =-quaternion[3];
+
     return {translate: translate, scale: scale, skew: skew, 
             quaternion: quaternion, perspective: perspective};
   }
