@@ -2241,6 +2241,12 @@ TimingFunction.createFromString = function(spec, timedItem) {
       break;
     }
   }
+
+  if (timedItem.specified._easingTimes == 'align' ||
+      timedItem.specified._easingTimes.length) {
+    return new ChainedTimingFunction(components, timedItem);
+  }
+
   if (components.length == 0) {
     return presetTimingFunctions.linear;
   }
@@ -2384,11 +2390,14 @@ PacedTimingFunction.prototype = createObject(TimingFunction.prototype, {
 var ChainedTimingFunction = function(timingFunctionList, timedItem) {
   this._components = timingFunctionList;
   this._timedItem = timedItem;
-  this._positionList = [];
-  for (var i = 0; i < this._components.length; i++) {
-    this._positionList.push(i / this._components.length);
+  if (timedItem.specified._easingTimes == 'align') {
+    this.generatePositionListFromKeyframes();
+  } else if (timedItem.specified._easingTimes == 'distribute') {
+    this.generateDistributedPositionList();
+  } else {
+    this._positionList = timedItem.specified._easingTimes;
+    this.normalizePositionList();
   }
-  this._positionList.push(1);
 }
 
 ChainedTimingFunction.prototype = createObject(TimingFunction.prototype, {
@@ -2412,6 +2421,13 @@ ChainedTimingFunction.prototype = createObject(TimingFunction.prototype, {
       var yLocal = xLocal;
     }
     return xStart + yLocal * (xEnd - xStart);
+  },
+  generateDistributedPositionList: function() {
+    this._positionList = [];
+    for (var i = 0; i < this._components.length; i++) {
+      this._positionList.push(i / this._components.length);
+    }
+    this._positionList.push(1);
   }
 });
 
