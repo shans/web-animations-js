@@ -33,6 +33,7 @@ var tests = [
   'auto-test-start-time-iterations.html',
   'auto-test-svg-anim.html',
   'auto-test-text-shadow.html',
+  'auto-test-timing-function-chains.html',
   'auto-test-timing-functions.html',
   'auto-test-to-animation.html',
   'auto-test-transform-3d.html',

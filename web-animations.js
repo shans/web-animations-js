@@ -2247,13 +2247,13 @@ TimingFunction.createFromString = function(spec, timedItem) {
   if (components.length == 1) {
     return components[0];
   }
-  return new ChainedTimingFunction(components);
+  return new ChainedTimingFunction(components, timedItem);
 };
 
 TimingFunction.componentFromString = function(spec, timedItem) {
   var toFirstSpace = spec.split(' ')[0];
   var preset = presetTimingFunctions[toFirstSpace];
-  if (preset) {
+  if (preset || toFirstSpace == 'linear') { 
     return {fun: preset, len: toFirstSpace.length};
   }
   if (spec.substring(0, 5) =='paced') {
@@ -2264,13 +2264,13 @@ TimingFunction.componentFromString = function(spec, timedItem) {
     return {fun: presetTimingFunctions.linear, len: 5};
   }
 
-  var stepMatch = /steps\(\s*(\d+)\s*,\s*(start|end|middle)\s*\)/.exec(spec);
+  var stepMatch = /^steps\(\s*(\d+)\s*,\s*(start|end|middle)\s*\)/.exec(spec);
   if (stepMatch) {
     return {fun: new StepTimingFunction(Number(stepMatch[1]), stepMatch[2]), 
         len: stepMatch[0].length};
   }
   var bezierMatch =
-      /cubic-bezier\(([^,]*),([^,]*),([^,]*),([^)]*)\)/.exec(spec);
+      /^cubic-bezier\(([^,]*),([^,]*),([^,]*),([^)]*)\)/.exec(spec);
   if (bezierMatch) {
     return {fun: new SplineTimingFunction([
         Number(bezierMatch[1]),
@@ -2379,6 +2379,40 @@ PacedTimingFunction.prototype = createObject(TimingFunction.prototype, {
     }
     return leftIndex;
   },
+});
+
+var ChainedTimingFunction = function(timingFunctionList, timedItem) {
+  this._components = timingFunctionList;
+  this._timedItem = timedItem;
+  this._positionList = [];
+  for (var i = 0; i < this._components.length; i++) {
+    this._positionList.push(i / this._components.length);
+  }
+  this._positionList.push(1);
+}
+
+ChainedTimingFunction.prototype = createObject(TimingFunction.prototype, {
+  scaleTime: function(fraction) {
+    var startIndex = this._positionList.length - 1;
+    while (this._positionList[startIndex] > fraction && startIndex > 0) {
+      startIndex--;
+    }
+    if (this._positionList[startIndex] == 1) {
+      startIndex--;
+    }
+    var xStart = this._positionList[startIndex];
+    var xEnd = this._positionList[startIndex + 1];
+    var f = this._components[startIndex];
+    var xLocal = (fraction - xStart) / (xEnd - xStart);
+    // Deal with the fact that linear timing functions are represented
+    // by null.
+    if (f) {
+      var yLocal = f.scaleTime(xLocal);
+    } else {
+      var yLocal = xLocal;
+    }
+    return xStart + yLocal * (xEnd - xStart);
+  }
 });
 
 var interp = function(from, to, f, type) {
