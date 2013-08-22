@@ -89,6 +89,7 @@ TimingDict.prototype = {
   playbackRate: 1,
   direction: 'normal',
   easing: 'linear',
+  _easingTimes: 'distribute'
 }
 
 /** @constructor */
@@ -123,6 +124,12 @@ Timing.prototype = {
   _activeDuration: function() {
     var value = this._dict.activeDuration;
     return typeof value == 'number' ? value : 'auto';
+  },
+  getEasingTimes: function() {
+    return this._easingTimes;
+  },
+  setEasingTimes: function(times) {
+    this._easingTimes = times;
   },
   _clone: function() {
     return new Timing(constructorToken, this._dict, this._updateInternalState.bind(this));
