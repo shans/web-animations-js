@@ -2230,31 +2230,55 @@ var TimingFunction = function() {
 TimingFunction.prototype.scaleTime = abstractMethod;
 
 TimingFunction.createFromString = function(spec, timedItem) {
-  var preset = presetTimingFunctions[spec];
-  if (preset) {
-    return preset;
-  }
-  if (spec === 'paced') {
-    if (timedItem instanceof Animation &&
-        timedItem.effect instanceof PathAnimationEffect) {
-      return new PacedTimingFunction(timedItem);
+  var components = [];
+  while (true) {
+    spec = spec.trim();
+    var component = this.componentFromString(spec, timedItem);
+    if (component) {
+      components.push(component.fun);
+      spec = spec.substring(component.len);
+    } else {
+      break;
     }
+  }
+  if (components.length == 0) {
     return presetTimingFunctions.linear;
   }
+  if (components.length == 1) {
+    return components[0];
+  }
+  return new ChainedTimingFunction(components);
+};
+
+TimingFunction.componentFromString = function(spec, timedItem) {
+  var toFirstSpace = spec.split(' ')[0];
+  var preset = presetTimingFunctions[toFirstSpace];
+  if (preset) {
+    return {fun: preset, len: toFirstSpace.length};
+  }
+  if (spec.substring(0, 5) =='paced') {
+    if (timedItem instanceof Animation &&
+        timedItem.effect instanceof PathAnimationEffect) {
+      return {fun: new PacedTimingFunction(timedItem), len: 5};
+    }
+    return {fun: presetTimingFunctions.linear, len: 5};
+  }
+
   var stepMatch = /steps\(\s*(\d+)\s*,\s*(start|end|middle)\s*\)/.exec(spec);
   if (stepMatch) {
-    return new StepTimingFunction(Number(stepMatch[1]), stepMatch[2]);
+    return {fun: new StepTimingFunction(Number(stepMatch[1]), stepMatch[2]), 
+        len: stepMatch[0].length};
   }
   var bezierMatch =
       /cubic-bezier\(([^,]*),([^,]*),([^,]*),([^)]*)\)/.exec(spec);
   if (bezierMatch) {
-    return new SplineTimingFunction([
+    return {fun: new SplineTimingFunction([
         Number(bezierMatch[1]),
         Number(bezierMatch[2]),
         Number(bezierMatch[3]),
-        Number(bezierMatch[4])]);
+        Number(bezierMatch[4])]),
+        len: bezierMatch[0].length};
   }
-  return presetTimingFunctions.linear;
 };
 
 /** @constructor */
