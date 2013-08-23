@@ -2158,6 +2158,12 @@ KeyframeAnimationEffect.prototype = createObject(AnimationEffect.prototype, {
 
     return distributedKeyframes;
   },
+  _positionListForTiming: function() {
+    var distributedKeyframes = this._getDistributedKeyframes();
+    return distributedKeyframes.map(function(keyframeDictionary) {
+      return keyframeDictionary.offset;
+    });
+  }
 });
 
 
@@ -2390,6 +2396,7 @@ PacedTimingFunction.prototype = createObject(TimingFunction.prototype, {
 var ChainedTimingFunction = function(timingFunctionList, timedItem) {
   this._components = timingFunctionList;
   this._timedItem = timedItem;
+  console.log(timedItem.specified._easingTimes);
   if (timedItem.specified._easingTimes == 'align') {
     this.generatePositionListFromKeyframes();
   } else if (timedItem.specified._easingTimes == 'distribute') {
@@ -2428,6 +2435,15 @@ ChainedTimingFunction.prototype = createObject(TimingFunction.prototype, {
       this._positionList.push(i / this._components.length);
     }
     this._positionList.push(1);
+  },
+  generatePositionListFromKeyframes: function() {
+    console.log('from keyframes');
+    if (this._timedItem.effect) {
+      this._positionList = this._timedItem.effect._positionListForTiming();
+      console.log(this._positionList);
+    } else {
+      generateDistributedPositionList();
+    }
   }
 });
 

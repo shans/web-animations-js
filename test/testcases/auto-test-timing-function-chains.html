@@ -29,7 +29,7 @@ limitations under the License.
   position: absolute;
   left: 300px;
   width: 500px;
-  height: 75px;
+  height: 100px;
   background: red;
 }
 body { margin: 0px; }
@@ -41,6 +41,7 @@ body { margin: 0px; }
   <div id="a" class="anim test">ease ease</div>
   <div id="b" class="anim test">ease-in ease ease-out</div>
   <div id="c" class="anim test">cubic-bezier(0, -1.5, 1, 1.5) steps(4, middle) linear</div>
+  <div id="d" class="anim test">cubic-bezier(0, -1.5, 1, 1.5) steps(4, middle) linear</div>
 </div>
 
 <div style="height:50px"></div>
@@ -58,9 +59,16 @@ var expected_failures = {
 "use strict";
 
 var elems = document.querySelectorAll(".test");
-for (var i = 0; i < elems.length; i++) {
+for (var i = 0; i < 3; i++) {
   var element = elems[i];
   document.timeline.play(new Animation(element, {left: "300px"},
       {delay: 1, duration: 3, easing: element.textContent}));
+}
+for (var i = 3; i < elems.length; i++) {
+  var element = elems[i];
+  document.timeline.play(new Animation(element, [{left: "0px", offset: 0},
+      {left: "400px", offset: 0.2}, {left: "200px", offset: 0.8}, 
+      {left: "300px", offset: 1}],
+      {delay: 1, duration: 3, easing: element.textContent, _easingTimes: 'align'}));
 }
 </script>
