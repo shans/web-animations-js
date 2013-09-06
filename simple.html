@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<style>
+.anim {
+  position: absolute;
+  left: 0px;
+  top: 100px;
+  width: 100px;
+  height: 100px;
+  background: red;
+}
+</style>
+<div class='anim'></div>
+<script src='web-animations.js'></script>
+<script src='wax.js'></script>
+<script>
+var a = new Animation(document.querySelector('.anim'), [{left: '100px'}, {left: '200px'}], 1);
+document.timeline.play(a);
+</script>

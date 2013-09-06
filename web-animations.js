@@ -1093,6 +1093,9 @@ var Animation = function(target, animationEffect, timingInput) {
   } finally {
     exitModifyCurrentAnimationState(false);
   }
+  if (window.waxelerate) {
+    this._wax = waxelerate(this);
+  }
 };
 
 Animation.prototype = createObject(TimedItem.prototype, {
@@ -1112,7 +1115,9 @@ Animation.prototype = createObject(TimedItem.prototype, {
     }
   },
   _getLeafItemsInEffectImpl: function(items) {
-    items.push(this);
+    if (!this._wax) {
+      items.push(this);
+    }
   },
   _isTargetingElement: function(element) {
     return element === this.target;
@@ -1133,6 +1138,12 @@ Animation.prototype = createObject(TimedItem.prototype, {
     } finally {
       exitModifyCurrentAnimationState(
           Boolean(this.player) && this.player._hasTicked);
+    }
+    if (window.waxelerate) {
+      if (this._wax) {
+        waxRemove(this._wax);
+      }
+      this._wax = waxelerate(this);
     }
   },
   get effect() {
@@ -5304,6 +5315,10 @@ window._WebAnimationsTestingUtilities = {
   _linearTimingFunction: LinearTimingFunction,
   _pacedTimingFunction: PacedTimingFunction,
   _enableAsserts: function() { ASSERT_ENABLED = true; }
+};
+
+window._WebAnimationsWAXUtilities = {
+  lengthType: lengthType
 };
 
 })();
