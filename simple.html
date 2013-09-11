@@ -8,11 +8,56 @@
   height: 100px;
   background: red;
 }
+
+#b {
+  top: 200px;
+}
+
+#c {
+  top: 300px;
+}
+
+#d {
+  left: 300px;
+}
+
+#e {
+  left: 300px;
+  top: 200px;
+}
+
+#f {
+  left: 300px;
+  top: 300px;
+}
 </style>
-<div class='anim'></div>
+<div class='anim' id='a'></div>
+<div class='anim' id='b'></div>
+<div class='anim' id='c'></div>
+<div class='anim' id='d'></div>
+<div class='anim' id='e'></div>
+<div class='anim' id='f'></div>
 <script src='web-animations.js'></script>
 <script src='wax.js'></script>
 <script>
-var a = new Animation(document.querySelector('.anim'), [{left: '100px'}, {left: '200px'}], 1);
-document.timeline.play(a);
+
+var anim1 = new Animation(a, [{left: '100px'}, {left: '200px'}], 1);
+document.timeline.play(anim1);
+
+var anim2 = new Animation(b, [{left: '100px'}, {left: '200px'}], {delay: 1, duration: 1});
+document.timeline.play(anim2);
+
+var anim3 = new Animation(c, [{left: '100px'}, {left: '200px'}], 1);
+var player = document.timeline.play(anim3);
+player.startTime = 2;
+
+var anim4 = new Animation(d, [{left: '400px'}, {left: '500px'}], {duration: 2, playbackRate: 2});
+document.timeline.play(anim4);
+
+var anim5 = new Animation(e, [{left: '400px'}, {left: '500px'}], {delay: 1, duration: 2, playbackRate: 2});
+document.timeline.play(anim5);
+
+var anim6 = new Animation(f, [{left: '400px'}, {left: '500px'}], {duration: 2, playbackRate: 2});
+var player2 = document.timeline.play(anim6);
+player2.startTime = 2;
 </script>

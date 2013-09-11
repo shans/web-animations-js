@@ -254,6 +254,7 @@ var Player = function(token, source, timeline) {
   if (token !== constructorToken) {
     throw new TypeError('Illegal constructor');
   }
+  this._waxList = [];
   this._registeredOnTimeline = false;
   this._sequenceNumber = playerSequenceNumber++;
   this._timeline = timeline;
@@ -267,6 +268,7 @@ var Player = function(token, source, timeline) {
   this.source = source;
   this._checkForHandlers();
   this._lastCurrentTime = undefined;
+
 
   playersAreSorted = false;
   maybeRestartAnimation();
@@ -330,6 +332,7 @@ Player.prototype = {
         this._timeDrift;
   },
   set startTime(startTime) {
+    var oldStart = this._startTime;
     enterModifyCurrentAnimationState();
     try {
       // This seeks by updating _startTime and hence the currentTime. It does
@@ -342,6 +345,11 @@ Player.prototype = {
       exitModifyCurrentAnimationState(
           this._hasTicked || this.startTime + this._timeDrift <= lastTickTime);
     }
+    this._waxList.forEach(function(wax) {
+      wax.startTime += startTime - oldStart; 
+      wax.endTime += startTime - oldStart;
+      wax.reset();
+    });
   },
   get startTime() {
     return this._startTime;
@@ -436,6 +444,16 @@ Player.prototype = {
   _deregisterFromTimeline: function() {
     PLAYERS.splice(PLAYERS.indexOf(this), 1);
     this._registeredOnTimeline = false;
+  },
+  _addWax: function(wax) {
+    console.log('adding', wax);
+    this._waxList.push(wax);
+    waxAdd(wax);
+  },
+  _removeWax: function(wax) {
+    console.log('removing', wax);
+    this._waxList.splice(this._waxList.indexOf(wax), 1);
+    waxRemove(wax);
   }
 };
 
@@ -499,8 +517,32 @@ TimedItem.prototype = {
   _attach: function(player) {
     // Remove ourselves from our parent, if we have one. This also removes any
     // exsisting player.
+    if (this.player != null) {
+      this._clearWax(this.player);
+    }
     this._reparent(null);
     this._player = player;
+    this._gatherWax(player);
+  },
+  _gatherWax: function(player) {
+    if (this._wax) {
+      player._addWax(this._wax);
+    }
+    if (this.children) {
+      this.children.forEach(function(child) {
+        child._gatherWax(player);
+      });
+    }
+  },
+  _clearWax: function(player) {
+    if (this._wax) {
+      player._removeWax(this._wax);
+    }
+    if (this.children) {
+      this.children.forEach(function(child) {
+        child._clearWax(player);
+      });
+    }
   },
   // Takes care of updating the outgoing parent. This is called with a non-null
   // parent only from TimingGroup.splice(), which takes care of calling
@@ -1081,20 +1123,15 @@ var cloneAnimationEffect = function(animationEffect) {
   }
 };
 
-
-
 /** @constructor */
 var Animation = function(target, animationEffect, timingInput) {
   enterModifyCurrentAnimationState();
   try {
     TimedItem.call(this, constructorToken, timingInput);
-    this.effect = interpretAnimationEffect(animationEffect);
     this._target = target;
+    this.effect = interpretAnimationEffect(animationEffect);
   } finally {
     exitModifyCurrentAnimationState(false);
-  }
-  if (window.waxelerate) {
-    this._wax = waxelerate(this);
   }
 };
 
@@ -1140,10 +1177,13 @@ Animation.prototype = createObject(TimedItem.prototype, {
           Boolean(this.player) && this.player._hasTicked);
     }
     if (window.waxelerate) {
-      if (this._wax) {
-        waxRemove(this._wax);
+      if (this._wax && this.player) {
+        this.player._removeWax(this._wax);
       }
       this._wax = waxelerate(this);
+      if (this._wax && this.player) {
+        this.player._addWax(this._wax);
+      }
     }
   },
   get effect() {
@@ -5240,6 +5280,10 @@ var ticker = function(rafTime, isRepeat) {
 
   // Composite animated values into element styles
   compositor.applyAnimatedValues();
+
+  if (window.waxUpdate) {
+    waxUpdate(document.timeline.currentTime);
+  }
 
   if (!isRepeat) {
     if (finished || paused) {
