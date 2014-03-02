@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<style>
+.anim {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  border-radius: 5px;
+  border: solid black 1px;
+}
+
+#replace {
+  top: 100px;
+  left: 100px;
+}
+
+#add {
+  top: 500px;
+  left: 100px;
+}
+
+#accumulate {
+  top: 900px;
+  left: 100px;
+}
+</style>
+<div class='anim' id='replace'></div>
+<div class='anim' id='add'></div>
+<div class='anim' id='accumulate'></div>
+<script src='web-animations.js'></script>
+<script>
+
+replace.animate(
+  {transform: 'translate(200px, 0px) rotate(45deg) scale(1, 1.5)'}, {duration: 2, fill: 'forwards'});
+add.animate(
+  {transform: 'translate(200px, 0px) rotate(45deg) scale(1, 1.5)'}, {duration: 2, fill: 'forwards'});
+accumulate.animate(
+  {transform: 'translate(200px, 0px) rotate(45deg) scale(1, 1.5)'}, {duration: 2, fill: 'forwards'});
+
+replace.animate(
+  {transform: 'translate(200px, 0px) rotate(45deg) scale(1, 1.5)', composite: 'replace'}, {duration: 2, fill: 'forwards'});
+add.animate(
+  {transform: 'translate(200px, 0px) rotate(45deg) scale(1, 1.5)', composite: 'add'}, {duration: 2, fill: 'forwards'});
+accumulate.animate(
+  [{transform: 'translate(0px, 0px) rotate(0deg) scale(1, 1)', composite: 'accumulate'},
+   {transform: 'translate(200px, 0px) rotate(45deg) scale(1, 1.5)', composite: 'accumulate'}], {duration: 2, fill: 'forwards'});
+</script>

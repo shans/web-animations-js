@@ -1823,7 +1823,10 @@ MotionPathEffect.prototype = createObject(AnimationEffect.prototype, {
     enterModifyCurrentAnimationState();
     try {
       // Use the default value if an invalid string is specified.
-      this._composite = value === 'add' ? 'add' : 'replace';
+      this._composite = 'replace';
+      if (value === 'add' || value === 'accumulate') {
+        this._composite = value;
+      }
     } finally {
       exitModifyCurrentAnimationState(repeatLastTick);
     }
@@ -2031,7 +2034,7 @@ var normalizeKeyframeDictionary = function(properties) {
         result.offset = properties.offset;
       }
     } else if (property === 'composite') {
-      if (properties.composite === 'add' ||
+      if (properties.composite === 'add' || properties.composite === 'accumulate' ||
           properties.composite === 'replace') {
         result.composite = properties.composite;
       }
@@ -2627,6 +2630,36 @@ var interp = function(from, to, f, type) {
 
   return to * f + from * (1 - f);
 };
+
+var add_prim = function(from, to, scale) {
+  if (Array.isArray(from) && Array.isArray(to)) {
+    var result = [];
+    for (var i = 0; i < from.length; i++) {
+      result.push(add_prim(from[i], to[i], scale));
+    }
+    return result;
+  }
+  if (typeof from == 'number' && typeof to == 'number') {
+    if (scale) {
+      return from * to;
+    }
+    return from + to;
+  }
+  var result = {}
+  for (var k in from) {
+    if (k in to) {
+      result[k] = from[k] + to[k];
+    } else {
+      result[k] = from[k];
+    }
+  }
+  for (k in to) {
+    if (!(k in result)) {
+      result[k] = to[k];
+    }
+  }
+  return result;
+}
 
 var interpArray = function(from, to, f, type) {
   ASSERT_ENABLED && assert(
@@ -4109,6 +4142,14 @@ function interpTransformValue(from, to, f) {
   }
 }
 
+function addTransformValue(from, to) {
+  var scale = false;
+  if (from.t.substring(0, 5) == 'scale') {
+    var scale = true;
+  }
+  return {t: from.t, d: add_prim(from.d, to.d, scale)};
+}
+
 // The CSSWG decided to disallow scientific notation in CSS property strings
 // (see http://lists.w3.org/Archives/Public/www-style/2010Feb/0050.html).
 // We need this function to hakonitize all numbers before adding them to
@@ -4120,6 +4161,22 @@ function n(num) {
 
 var transformType = {
   add: function(base, delta) { return base.concat(delta); },
+  accumulate: function(base, delta) {
+    var out = [];
+    for (var i = 0; i < Math.min(base.length, delta.length); i++) {
+      if (base[i].t !== delta[i].t) {
+        break;
+      }
+      out.push(addTransformValue(base[i], delta[i]));
+    }
+    if (i < base.length) {
+      out = out.concat(base.slice(i));
+    }
+    if (i < delta.length) {
+      out = out.concat(delta.slice(i));
+    }
+    return out;
+  },
   interpolate: function(from, to, f) {
     var out = [];
     for (var i = 0; i < Math.min(from.length, to.length); i++) {
@@ -4445,6 +4502,12 @@ var add = function(property, base, delta) {
   return getType(property).add(base, delta);
 };
 
+var accumulate = function(property, base, delta) {
+  if (property !== 'transform' | delta === rawNeutralValue || base === 'inherit' || delta ==='inherit') {
+    return add(property, base, delta);
+  }
+  return transformType.accumulate(base, delta);
+}
 
 /**
  * Interpolate the given property name (f*100)% of the way from 'from' to 'to'.
@@ -4543,13 +4606,15 @@ AddReplaceCompositableValue.prototype = createObject(
             return this.value;
           case 'add':
             return add(property, underlyingValue, this.value);
+          case 'accumulate':
+            return accumulate(property, underlyingValue, this.value);
           default:
             ASSERT_ENABLED && assert(
                 false, 'Invalid composite operation ' + this.composite);
         }
       },
       dependsOnUnderlyingValue: function() {
-        return this.composite === 'add';
+        return this.composite === 'add' || this.composite == 'accumulate';
       }
     });
 
