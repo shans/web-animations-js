@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<style>
+.anim {
+  position: absolute;
+  width: 50px;
+  height: 50px;
+  border-radius: 5px;
+  border: solid black 1px;
+}
+
+.replaceAdd { top: 50px; }
+
+.replaceAccum { top: 200px; }
+
+#replaceAdd { background-color: rgba(255, 0, 0, 0.1); left: 50px; }
+#replaceAdd2 { background-color: rgba(0, 255, 0, 0.1); left: 60px; }
+#replaceAdd3 { background-color: rgba(0, 0, 255, 0.1); left: 70px; }
+#replaceAdd4 { background-color: rgba(255, 255, 0, 0.1); left: 80px; }
+#replaceAccum { background-color: rgba(255, 0, 0, 0.1); left: 50px; }
+#replaceAccum2 { background-color: rgba(0, 255, 0, 0.1); left: 60px; }
+#replaceAccum3 { background-color: rgba(0, 0, 255, 0.1); left: 70px; }
+#replaceAccum4 { background-color: rgba(255, 255, 0, 0.1); left: 80px; }
+
+</style>
+<div class='anim replaceAdd' id='replaceAdd'></div>
+<div class='anim replaceAdd' id='replaceAdd2'></div>
+<div class='anim replaceAdd' id='replaceAdd3'></div>
+<div class='anim replaceAdd' id='replaceAdd4'></div>
+<div class='anim replaceAccum' id='replaceAccum'></div>
+<div class='anim replaceAccum' id='replaceAccum2'></div>
+<div class='anim replaceAccum' id='replaceAccum3'></div>
+<div class='anim replaceAccum' id='replaceAccum4'></div>
+<script src='web-animations.js'></script>
+<script>
+
+var timing = {duration: 2, iterations: Infinity};
+
+// This animates on top of the empty transform, so both start and end have RTS
+replaceAdd.animate([
+    {transform: 'rotate(0deg) translate(0px, 0px) scale(1, 1)'},
+    {transform: 'rotate(45deg) translate(200px, 0px) scale(1, 1.5)', composite: 'add'}], 
+  timing);
+
+// This animates on the empty transform, but needs to use matrix interpolation
+replaceAdd2.animate([
+    {transform: 'translate(0px, 0px)'},
+    {transform: 'rotate(45deg) translate(200px, 0px) scale(1, 1.5)', composite: 'add'}], 
+  timing);
+
+// Here matrix interpolation is forced because the initial frame (RTS) doesn't match the final frame (TRTS) 
+replaceAdd3.animate([{transform: 'translate(0px)'}, {transform: 'translate(0px)'}], timing);
+replaceAdd3.animate([
+    {transform: 'rotate(0deg) translate(0px, 0px) scale(1, 1)'},
+    {transform: 'rotate(45deg) translate(200px, 0px) scale(1, 1.5)', composite: 'add'}], 
+  timing);
+
+// Here matrix interpolation is forced because the initial frame (RTS) doesn't match the final frame (RRTS) 
+replaceAdd4.animate([{transform: 'rotate(0deg)'}, {transform: 'rotate(0deg)'}], timing);
+replaceAdd4.animate([
+    {transform: 'rotate(0deg) translate(0px, 0px) scale(1, 1)'},
+    {transform: 'rotate(45deg) translate(200px, 0px) scale(1, 1.5)', composite: 'add'}], 
+  timing);
+
+// With nothing to accumulate onto, normal addition is used and start & end both have RTS
+replaceAccum.animate([
+    {transform: 'rotate(0deg) translate(0px, 0px) scale(1, 1)'},
+    {transform: 'rotate(45deg) translate(200px, 0px) scale(1, 1.5)', composite: 'accumulate'}], 
+  timing);
+
+replaceAccum2.animate([
+    {transform: 'translate(0px, 0px)'},
+    {transform: 'rotate(45deg) translate(200px, 0px) scale(1, 1.5)', composite: 'accumulate'}], 
+  timing);
+
+// Here matrix interpolation is forced because the initial frame (RTS) doesn't match the final frame (TRTS) 
+replaceAccum3.animate([{transform: 'translate(0px)'}, {transform: 'translate(0px)'}], timing);
+replaceAccum3.animate([
+    {transform: 'rotate(0deg) translate(0px, 0px) scale(1, 1)'},
+    {transform: 'rotate(45deg) translate(200px, 0px) scale(1, 1.5)', composite: 'accumulate'}], 
+  timing);
+
+// Here the rotation is accumulated onto and nice interpolation of RTS occurs
+replaceAccum4.animate([{transform: 'rotate(0deg)'}, {transform: 'rotate(0deg)'}], timing);
+replaceAccum4.animate([
+    {transform: 'rotate(0deg) translate(0px, 0px) scale(1, 1)'},
+    {transform: 'rotate(45deg) translate(200px, 0px) scale(1, 1.5)', composite: 'accumulate'}], 
+  timing);
+</script>
